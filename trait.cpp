@@ -1,6 +1,7 @@
 #include <type_traits>
 #include <iostream>
 #include <utility>
+#include <typeinfo>
 
 class Widget 
 {
@@ -60,8 +61,12 @@ typename std::enable_if<has_get<T>::value,void>::type
 print(const T& t)
 {std::cout << t.get() << std::endl;}
 
-                                 
+void test(int (&t)[3])
+{std::cout << "sdsd" << std::endl;}
 
+template<int N> 
+void meow(const char (&array)[N])
+{std::cout << "Size: "<<N << std::endl;}
 
 
 int main(int argc, char *argv[])
@@ -74,7 +79,18 @@ int main(int argc, char *argv[])
 	//static_assert(has_get<Failget>::value,"Failget does not provide get");
 	static_assert(has_get<Widget>::value,"Widget does not proivde get");
 	
+	meow("fuck");
+	int b[3] = 
+	   {
+		   1,2,3
+	   };
+	std::cout <<"Add:"<< (&b)[0]<< std::endl;
+	std::cout <<"Addr 2: "<< (&b[0])<< std::endl;
+	std::cout <<"Val: "<< *(&b[0])<< std::endl;
+	std::cout <<"Val 2: "<< *((&b)[0])<< std::endl;
 
+
+	test(b);
 	
 	print(1000);
 	print(g);
