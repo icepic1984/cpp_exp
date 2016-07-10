@@ -1,115 +1,89 @@
+ #include <thread>
 #include <iostream>
-#include <exception>
-#include <functional>
-#include <stdexcept>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 
 template <typename T>
-struct ScannerFactory 
+class Tqueue 
 {
-   static T* init(){
-	   return new T();
+public:
+
+   Tqueue() : m_next_ticket(0),
+              m_counter(0) {}
+
+   void push(const T& e){
+       std::unique_lock<std::mutex> lock(m_mutex);
+       m_queue.push(e);
+       lock.unlock();
+       m_cond.notify_all();
+    };
+
+   T wait_and_pop() {
+       std::unique_lock<std::mutex> lock(m_mutex);
+       int ticket = m_next_ticket++;
+       m_cond.wait(lock,[=]{return (!m_queue.empty())
+                  && (ticket == m_counter);});
+       m_counter++;
+       T data = m_queue.front();
+       m_queue.pop();
+       m_cond.notify_all();
+       lock.unlock();
+       return data;
    }
-   typedef T ScannerType_t;
+
+private:
+   int m_next_ticket;
+   int m_counter;
+   std::queue<T> m_queue;
+   std::mutex m_mutex;
+   std::condition_variable m_cond;   
 };
 
-template <typename T> 
-struct Observer 
+Tqueue<int> queue;
+
+std::mutex mutex;
+
+void test(int i) 
 {
-   void registerObserver(T* ob) {
-	   m_ob = ob;
-   }
+    auto bla = queue.wait_and_pop();
+    std::unique_lock<std::mutex> lock(mutex);
+    std::cout << "Thread : "<<i << std::endl;
+}
 
-   T* m_ob;
-};
+const int SIZE = 200;
 
-template <typename T>
-struct ScanController
+
+class lispstring : public std::string
 {
-   ScanController(T* sc) : m_sc(sc) {}
-
-   T* m_sc;
-};
-
-
-struct TestInterface : Observer<ScanController<TestInterface>> 
-{};
-
-struct ScannerInterface : Observer<ScanController<ScannerInterface>>
-{};
-
-      
-typedef ScannerFactory<ScannerInterface> ScannerInterface_t;
-
-
-template <typename T>
-struct Monad
-{
-   T value;
-};
-
-using func_t = std::function<void()> ;
-struct Chain
-{
-   Chain(func_t v) : value(v),
-                     exception(nullptr){}
-   Chain(func_t v, std::exception_ptr exp) :
-	   value(v), exception(exp){}
-
-   func_t value;
-   std::exception_ptr exception;
-};
-
-template <typename T>
-Chain unit(T t)
-{return Chain{t};}
-
-template <typename A>
-Chain bind(Chain m, Chain(*func)(A))
- {
-	 if(m.exception){
-		 auto tmp = unit([]() {});
-		 tmp.exception = m.exception;
-		 return tmp;
-	 } else {
-		 try {
-			 return func(m.value);
-		 } catch(...) {
-			 auto tmp = unit([]() {});
-			 tmp.exception = std::current_exception();
-			 return tmp;
-		 }
-	 }
- }
-
+   using std::string::string;
    
+   
+};
+
 int main(int argc, char *argv[])
 {
-	ScannerInterface_t::ScannerType_t* test = ScannerInterface_t::init();
-	ScanController<ScannerInterface_t::ScannerType_t> sc(test);
-	test->registerObserver(&sc);
+	lispstring bla("bla");
+	bla.length();
+	
+	
+	
+    std::vector<std::thread> threads;
+    for(int i = 0; i < SIZE; ++i){
+       threads.push_back(std::thread(test,i));
+       std::this_thread::sleep_for(std::chrono::milliseconds(100));
+       std::cout << "yeah" << std::endl;
+    }
 
-	auto t = unit([](){ std::cout<<"hall"<<std::endl;});
-	auto t2 = bind(t,unit<func_t>);
-   
-	
-	auto bla = bind(t,+[](func_t t){
-			return Chain([=]{t();
-					throw std::invalid_argument("fuc");
-					std::cout<<"yeah"<<std::endl;});})
-;
-	
-		
-	
- 
-	t.value();
-	t2.value();
-	
-	// if(bla.exception){
-	// 	std::rethrow_exception(bla.exception);
-	// }
-	bla.value();
-	
-	
-	return 0;
+
+    for(int i = 0; i < SIZE; ++i){
+	    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	    queue.push(i);
+    }
+    for(int i = 0; i < SIZE; ++i)
+       threads[i].join();
+    return 0;
 }
+
+ 
 
