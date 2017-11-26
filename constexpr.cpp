@@ -258,7 +258,7 @@ constexpr auto s2 = sort(a4);
 
 int main()
 {
-	
+
 	for(auto iter : s2) {
 		std::cout << iter << std::endl;
 	 }
